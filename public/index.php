@@ -1,96 +1,90 @@
 <?php
-// Inicia a sessão para gerenciar variáveis de sessão
 session_start();
+require '../vendor/autoload.php';
+require '../src/routes.php';
 
-// Importa as dependências do projeto
-require '../vendor/autoload.php'; // Autoload do Composer
-require '../src/routes.php'; // Importa as rotas do sistema
+ini_set('display_errors', 1);
+ini_set('display_startup_errors', 1);
+error_reporting(E_ALL);
 
-/**
- * Configurações de CORS (Cross-Origin Resource Sharing)
- * Permite que o backend aceite requisições de diferentes domínios
- */
+// CORS
 header("Access-Control-Allow-Origin: *");
 header("Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS");
 header("Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With");
 header("Content-Type: application/json");
 
-// Responde a requisições OPTIONS para CORS
-if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
-    exit(0);
-}
+if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') exit(0);
 
 $method = $_SERVER['REQUEST_METHOD'];
 $uri = rawurldecode($_SERVER['REQUEST_URI']);
+$basePath = '/backend/public';
 
-// Log de requisição (para debug)
-error_log("Requisição recebida: $method $uri");
-
-// Instancia o controller principal
 $homeController = new \src\controllers\HomeController();
 
-// Novo base path
-$basePath = '/cine_tech_ac/public';
-
-// Roteamento atualizado
 switch (true) {
+
+    // Página inicial
     case ($method === 'GET' && $uri === "$basePath/"):
         $homeController->index();
         break;
 
+    // Listar todos os filmes
     case ($method === 'GET' && $uri === "$basePath/listar-filme"):
         $homeController->listarFilmes();
         break;
 
-    case ($method === 'GET' && preg_match("%^$basePath/filmes/categoria/([^/]+)$%i", $uri, $matches)):
-        $categoria = rawurldecode($matches[1]);
-        $homeController->listarFilmesPorCategoria($categoria);
-        break;
-
-    case ($method === 'GET' && preg_match("%^$basePath/filmes/titulo/(.+)$%", $uri, $matches)):
-        $titulo = rawurldecode($matches[1]);
-        $homeController->buscarFilmePorTitulo($titulo);
-        break;
-
+    // Listar categorias
     case ($method === 'GET' && $uri === "$basePath/categorias"):
         $homeController->listarCategorias();
         break;
 
-    case ($method === 'POST' && $uri === "$basePath/cadastrar-filme"):
+    // Buscar filme por ID
+    case ($method === 'GET' && preg_match("%^$basePath/filme/(\d+)$%", $uri, $matches)):
+        $homeController->buscarFilme((int)$matches[1]);
+        break;
+
+    // Buscar filmes por categoria
+    case ($method === 'GET' && preg_match("%^$basePath/filmes/categoria/([^/]+)$%", $uri, $matches)):
+        $homeController->listarFilmesPorCategoria($matches[1]);
+        break;
+
+    // Buscar filme por título (rota alternativa)
+    case ($method === 'GET' && preg_match("%^$basePath/filmes/buscar/(.+)$%", $uri, $matches)):
+        $homeController->buscarFilmePorTitulo($matches[1]);
+        break;
+
+    // Cadastrar novo filme
+    case ($method === 'POST' && $uri === "$basePath/cadastrar-Filme"):
         $homeController->cadastrarFilme();
         break;
 
-    case ($method === 'GET' && preg_match("%^$basePath/filme/(\d+)$%", $uri, $matches)):
-        $id = (int)$matches[1];
-        $homeController->buscarFilme($id);
+    // Atualizar filme (PUT ou POST)
+    case (($method === 'PUT' || $method === 'POST') && preg_match("%^$basePath/atualizar-filme/(\d+)$%", $uri, $matches)):
+        $homeController->atualizarFilme((int)$matches[1]);
         break;
 
+    // Deletar filme
     case ($method === 'DELETE' && preg_match("%^$basePath/deletar-filme/(\d+)$%", $uri, $matches)):
-        $id = (int)$matches[1];
-        $homeController->deletarFilme($id);
+        $homeController->deletarFilme((int)$matches[1]);
         break;
 
-    case ($method === 'PUT' && preg_match("%^$basePath/atualizar-filme/(\d+)$%", $uri, $matches)):
-        $id = (int)$matches[1];
-        $homeController->atualizarFilme($id);
-        break;
-
+    // Rota não encontrada
     default:
-        header("HTTP/1.1 404 Not Found");
+        http_response_code(404);
         echo json_encode([
             'status' => 'error',
             'message' => 'Rota não encontrada',
             'requested_uri' => $uri,
             'available_routes' => [
                 "$basePath/",
+                "$basePath/listar-filme",
                 "$basePath/categorias",
                 "$basePath/filmes/categoria/{categoria}",
-                "$basePath/listar-filme",
+                "$basePath/filmes/buscar/{titulo}",
                 "$basePath/filme/{id}",
-                "$basePath/filmes/titulo/{titulo}",
-                "$basePath/cadastrar-filme",
+                "$basePath/cadastrar-Filme",
+                "$basePath/atualizar-filme/{id}",
                 "$basePath/deletar-filme/{id}",
-                "$basePath/atualizar-filme/{id}"
             ]
         ]);
         break;

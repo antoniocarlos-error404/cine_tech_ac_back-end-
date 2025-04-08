@@ -6,186 +6,145 @@ use src\models\Filme;
 
 class HomeController extends Controller {
 
+    // Página de teste
     public function index() {
-        echo json_encode(['message' => 'teste feito para funcionar antonio!']);
+        echo json_encode(['message' => 'API funcionando corretamente!']);
     }
 
-    public function listarFilmesPorCategoria($categoria) {
-        $filmeModel = new Filme();
-        $filmes = $filmeModel->getFilmesFromDatabase($categoria);
-
-        header('Content-Type: application/json');
-        echo json_encode($filmes);
-    }
-
-    public function buscarFilmePorTitulo($titulo) {
-        $filmeModel = new Filme();
-        $filmes = $filmeModel->getFilmesFromDatabaseByTitulo($titulo);
-
-        header('Content-Type: application/json');
-        echo json_encode($filmes);
-    }
-
-    public function listarCategorias() {
-        $filmeModel = new Filme();
-        $categorias = $filmeModel->getCategoriasFromDatabase();
-
-        header('Content-Type: application/json');
-        echo json_encode($categorias);
-    }
-
+    // Listar todos os filmes
     public function listarFilmes() {
-        $filmeModel = new Filme();
-        $filmes = $filmeModel->getFilmesFromDatabase();
-
-        header('Content-Type: application/json');
-        echo json_encode($filmes);
+        $filmes = (new Filme())->getFilmesFromDatabase();
+        $this->json($filmes);
     }
 
-    public function cadastrarFilme() {
-        header('Content-Type: application/json');
-
-        if (!isset($_FILES['capa'])) {
-            echo json_encode(['status' => 'error', 'message' => 'A capa do filme é obrigatória.']);
-            return;
-        }
-
-        $titulo = $_POST['titulo'] ?? '';
-        $sinopse = $_POST['sinopse'] ?? '';
-        $trailer = $_POST['link_trailer'] ?? '';
-        $genero_id = $_POST['genero_id'] ?? '';
-        $data_lancamento = $_POST['data_lancamento'] ?? '';
-        $duracao = $_POST['duracao'] ?? '';
-
-        if (empty($titulo) || empty($genero_id) || empty($data_lancamento)) {
-            echo json_encode(['status' => 'error', 'message' => 'Campos obrigatórios estão vazios.']);
-            return;
-        }
-
-        $capa = $_FILES['capa'];
-        $uploadDir = __DIR__ . '/../../uploads/';
-        if (!is_dir($uploadDir)) {
-            mkdir($uploadDir, 0777, true);
-        }
-        $uploadFile = $uploadDir . basename($capa['name']);
-
-        $imageFileType = strtolower(pathinfo($uploadFile, PATHINFO_EXTENSION));
-        $allowedTypes = ['jpg', 'jpeg', 'png', 'gif'];
-        if (!in_array($imageFileType, $allowedTypes)) {
-            echo json_encode(['status' => 'error', 'message' => 'Formato de imagem inválido. Use JPG, JPEG, PNG ou GIF.']);
-            return;
-        }
-
-        if (move_uploaded_file($capa['tmp_name'], $uploadFile)) {
-            $filmeModel = new Filme();
-            $result = $filmeModel->inserirFilme(
-                $titulo,
-                $sinopse,
-                $trailer,
-                basename($capa['name']),
-                $genero_id,
-                $data_lancamento,
-                $duracao
-            );
-
-            echo json_encode($result ? 
-                ['status' => 'success', 'message' => 'Filme cadastrado com sucesso!'] : 
-                ['status' => 'error', 'message' => 'Erro ao cadastrar o filme.']
-            );
-        } else {
-            echo json_encode(['status' => 'error', 'message' => 'Erro ao fazer upload da imagem.']);
-        }
+    // Listar filmes por categoria
+    public function listarFilmesPorCategoria($categoria) {
+        $filmes = (new Filme())->getFilmesFromDatabase($categoria);
+        $this->json($filmes);
     }
 
-    public function deletarFilme($id) {
-        header('Content-Type: application/json');
+    // Buscar filme por título
+    public function buscarFilmePorTitulo($titulo) {
+        $filmes = (new Filme())->getFilmesFromDatabaseByTitulo($titulo);
+        $this->json($filmes);
+    }
 
+    // Buscar filme por ID
+    public function buscarFilme($id) {
         if (!is_numeric($id)) {
-            echo json_encode(['status' => 'error', 'message' => 'ID inválido.']);
-            return;
+            return $this->json(['status' => 'error', 'message' => 'ID inválido.']);
         }
 
-        $filmeModel = new Filme();
-        $result = $filmeModel->deletarFilme($id);
-
-        echo json_encode($result ? 
-            ['status' => 'success', 'message' => 'Filme deletado com sucesso!'] : 
-            ['status' => 'error', 'message' => 'Filme não encontrado ou já deletado.']
-        );
+        $filme = (new Filme())->buscarFilmePorId($id);
+        $this->json($filme ?: ['status' => 'error', 'message' => 'Filme não encontrado.']);
     }
 
-    public function atualizarFilme($id) {
-        header('Content-Type: application/json');
+    // Listar categorias fixas
+    public function listarCategorias() {
+        $categorias = ["Ação", "Terror", "Drama", "Ficção", "Romance"];
+        $this->json($categorias);
+    }
 
-        if (empty($_POST['titulo'])) {
-            echo json_encode(['status' => 'error', 'message' => 'O título do filme é obrigatório.']);
-            return;
+    // Cadastrar filme (com upload de imagem)
+    public function cadastrarFilme() {
+        if (!isset($_FILES['capa'])) {
+            return $this->json(['status' => 'error', 'message' => 'A capa do filme é obrigatória.']);
         }
 
-        $titulo = $_POST['titulo'] ?? '';
-        $sinopse = $_POST['sinopse'] ?? '';
-        $trailer = $_POST['link_trailer'] ?? '';
-        $genero_id = $_POST['genero_id'] ?? '';
-        $data_lancamento = $_POST['data_lancamento'] ?? '';
-        $duracao = $_POST['duracao'] ?? '';
-        $capa = null;
+        $titulo     = $_POST['titulo'] ?? '';
+        $sinopse    = $_POST['sinopse'] ?? '';
+        $trailer    = $_POST['trailer'] ?? '';
+        $categoria  = $_POST['categoria'] ?? '';
+        $lancamento = $_POST['lancamento'] ?? null;
+        $duracao    = $_POST['duracao'] ?? null;
+
+        $uploadDir = __DIR__ . '/../../uploads/';
+        $capa = $_FILES['capa'];
+        $fileName = basename($capa['name']);
+        $uploadPath = $uploadDir . $fileName;
+
+        $ext = strtolower(pathinfo($uploadPath, PATHINFO_EXTENSION));
+        $allowed = ['jpg', 'jpeg', 'png', 'gif'];
+        if (!in_array($ext, $allowed)) {
+            return $this->json(['status' => 'error', 'message' => 'Formato de imagem inválido.']);
+        }
+
+        if (!move_uploaded_file($capa['tmp_name'], $uploadPath)) {
+            return $this->json(['status' => 'error', 'message' => 'Erro ao fazer upload da imagem.']);
+        }
+
+        $result = (new Filme())->inserirFilme(
+            $titulo, $sinopse, $trailer, $fileName, $categoria, $lancamento, $duracao
+        );
+
+        $this->json($result
+            ? ['status' => 'success', 'message' => 'Filme cadastrado com sucesso!']
+            : ['status' => 'error', 'message' => 'Erro ao cadastrar o filme.']);
+    }
+
+    // Atualizar filme
+    public function atualizarFilme($id) {
+        if (empty($_POST['titulo'])) {
+            return $this->json(['status' => 'error', 'message' => 'O título é obrigatório.']);
+        }
+
+        $titulo     = $_POST['titulo'];
+        $sinopse    = $_POST['sinopse'] ?? '';
+        $trailer    = $_POST['trailer'] ?? '';
+        $categoria  = $_POST['categoria'] ?? '';
+        $lancamento = $_POST['lancamento'] ?? null;
+        $duracao    = $_POST['duracao'] ?? null;
+        $capaNome   = null;
 
         if (isset($_FILES['capa']) && $_FILES['capa']['error'] === UPLOAD_ERR_OK) {
-            $capaFile = $_FILES['capa'];
             $uploadDir = __DIR__ . '/../../uploads/';
-            if (!is_dir($uploadDir)) {
-                mkdir($uploadDir, 0777, true);
-            }
-            $uploadFile = $uploadDir . basename($capaFile['name']);
+            $capa = $_FILES['capa'];
+            $fileName = basename($capa['name']);
+            $uploadPath = $uploadDir . $fileName;
 
-            $imageFileType = strtolower(pathinfo($uploadFile, PATHINFO_EXTENSION));
-            $allowedTypes = ['jpg', 'jpeg', 'png', 'gif'];
-            if (!in_array($imageFileType, $allowedTypes)) {
-                echo json_encode(['status' => 'error', 'message' => 'Formato de imagem inválido. Use JPG, JPEG, PNG ou GIF.']);
-                return;
+            $ext = strtolower(pathinfo($uploadPath, PATHINFO_EXTENSION));
+            if (!in_array($ext, ['jpg', 'jpeg', 'png', 'gif'])) {
+                return $this->json(['status' => 'error', 'message' => 'Formato de imagem inválido.']);
             }
 
-            if (!move_uploaded_file($capaFile['tmp_name'], $uploadFile)) {
-                echo json_encode(['status' => 'error', 'message' => 'Erro ao fazer upload da imagem.']);
-                return;
+            if (!move_uploaded_file($capa['tmp_name'], $uploadPath)) {
+                return $this->json(['status' => 'error', 'message' => 'Erro ao fazer upload da imagem.']);
             }
 
-            $capa = basename($capaFile['name']);
+            $capaNome = $fileName;
         }
 
-        $filmeModel = new Filme();
-        $result = $filmeModel->atualizarFilme(
+        $result = (new Filme())->atualizarFilme(
             $id,
             $titulo,
             $sinopse,
             $trailer,
-            $capa,
-            $genero_id,
-            $data_lancamento,
+            $capaNome,
+            $categoria,
+            $lancamento,
             $duracao
         );
 
-        echo json_encode($result ? 
-            ['status' => 'success', 'message' => 'Filme atualizado com sucesso!'] : 
-            ['status' => 'error', 'message' => 'Erro ao atualizar o filme.']
-        );
+        $this->json($result
+            ? ['status' => 'success', 'message' => 'Filme atualizado com sucesso!']
+            : ['status' => 'error', 'message' => 'Erro ao atualizar o filme.']);
     }
 
-    public function buscarFilme($args)
-    {
-        header('Content-Type: application/json');
-    
-        $id = $args['id'] ?? null;
-    
+    // Deletar filme
+    public function deletarFilme($id) {
         if (!is_numeric($id)) {
-            echo json_encode(['status' => 'error', 'message' => 'ID inválido.']);
-            return;
+            return $this->json(['status' => 'error', 'message' => 'ID inválido.']);
         }
-    
-        $filmeModel = new Filme();
-        $filme = $filmeModel->buscarFilmePorId($id);
-    
-        echo json_encode($filme ? $filme : ['status' => 'error', 'message' => 'Filme não encontrado.']);
+
+        $result = (new Filme())->deletarFilme($id);
+        $this->json($result
+            ? ['status' => 'success', 'message' => 'Filme deletado com sucesso!']
+            : ['status' => 'error', 'message' => 'Filme não encontrado ou já deletado.']);
     }
-    
+
+    // Método auxiliar para retornar JSON
+    private function json($data) {
+        header('Content-Type: application/json');
+        echo json_encode($data);
+    }
 }

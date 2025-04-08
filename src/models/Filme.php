@@ -2,217 +2,123 @@
 namespace src\models;
 
 use core\Database;
-use core\Model;
 use PDO;
-use PDOException;
 
-class Filme extends Model {
-    public $id;
-    public $titulo;
-    public $sinopse;
-    public $trailer;
-    public $capa;
-    public $genero_id;
-    public $data_lancamento;
-    public $duracao;
+class Filme extends Database {
+    private $pdo;
 
-    public function salvar() {
-        $pdo = Database::getInstance();
-        $sql = "INSERT INTO filmes (titulo, genero_id, sinopse, trailer, data_lancamento, duracao, capa)
-                VALUES (?, ?, ?, ?, ?, ?, ?)";
-
-        $stmt = $pdo->prepare($sql);
-        $stmt->execute([
-            $this->titulo,
-            $this->genero_id,
-            $this->sinopse,
-            $this->trailer,
-            $this->data_lancamento,
-            $this->duracao,
-            $this->capa
-        ]);
-
-        $this->id = $pdo->lastInsertId();
-        return $this->id;
+    public function __construct() {
+        $this->pdo = $this-> getInstance(); // Assuming getConnection() is a method in Database class
     }
 
-    public function getFilmesFromDatabase($genero_id = null) {
-        $sql = "SELECT 
-                    f.id, f.titulo, f.sinopse, f.trailer, f.capa, f.data_lancamento, f.duracao,
-                    g.nome as genero
-                FROM filmes f
-                LEFT JOIN generos g ON f.genero_id = g.id";
-        
-        if ($genero_id) {
-            $sql .= " WHERE f.genero_id = :genero_id";
+    // =========================
+    // Inserir filme
+    // =========================
+ // =========================
+// Inserir filme
+// =========================
+public function inserirFilme($titulo, $sinopse, $trailer, $capa, $categoria, $lancamento, $duracao) {
+    $sql = "INSERT INTO filmes (titulo, sinopse, trailer, capa, categoria, lancamento, duracao) 
+            VALUES (:titulo, :sinopse, :trailer, :capa, :categoria, :lancamento, :duracao)";
+    
+    $stmt = $this->pdo->prepare($sql);
+    return $stmt->execute([
+        ':titulo'     => $titulo,
+        ':sinopse'    => $sinopse,
+        ':trailer'    => $trailer,
+        ':capa'       => $capa,
+        ':categoria'  => $categoria,
+        ':lancamento' => $lancamento,
+        ':duracao'    => $duracao
+    ]);
+}
+
+
+    // =========================
+    // Listar todos os filmes ou por categoria
+    // =========================
+    public function getFilmesFromDatabase($categoria = null) {
+        if ($categoria) {
+            $sql = "SELECT * FROM filmes WHERE categoria = :categoria ORDER BY id DESC";
+            $stmt = $this->pdo->prepare($sql);
+            $stmt->bindValue(':categoria', $categoria);
+        } else {
+            $sql = "SELECT * FROM filmes ORDER BY id DESC";
+            $stmt = $this->pdo->prepare($sql);
         }
 
-        try {
-            $pdo = Database::getInstance();
-            $stmt = $pdo->prepare($sql);
-
-            if ($genero_id) {
-                $stmt->bindValue(':genero_id', $genero_id, PDO::PARAM_INT);
-            }
-
-            $stmt->execute();
-
-            if ($stmt->rowCount() > 0) {
-                $filmes = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
-                foreach ($filmes as &$filme) {
-                    $filme['capa'] = 'http://localhost/cine_tech_ac/uploads/' . $filme['capa'];
-                }
-
-                return $filmes;
-            } else {
-                return [];
-            }
-        } catch (PDOException $e) {
-            die("Erro na consulta ao banco de dados: " . $e->getMessage());
-        }
+        $stmt->execute();
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
+    // =========================
+    // Buscar filme por título
+    // =========================
     public function getFilmesFromDatabaseByTitulo($titulo) {
-        $sql = "SELECT 
-                    f.id, f.titulo, f.sinopse, f.trailer, f.capa, f.data_lancamento, f.duracao,
-                    g.nome as genero
-                FROM filmes f
-                LEFT JOIN generos g ON f.genero_id = g.id
-                WHERE f.titulo LIKE :titulo";
+        $sql = "SELECT * FROM filmes WHERE titulo LIKE :titulo ORDER BY id DESC";
+        $stmt = $this->pdo->prepare($sql);
+        $stmt->bindValue(':titulo', '%' . $titulo . '%');
+        $stmt->execute();
 
-        try {
-            $pdo = Database::getInstance();
-            $stmt = $pdo->prepare($sql);
-            $stmt->bindValue(':titulo', '%' . $titulo . '%', PDO::PARAM_STR);
-            $stmt->execute();
-
-            if ($stmt->rowCount() > 0) {
-                $filmes = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
-                foreach ($filmes as &$filme) {
-                    $filme['capa'] = 'http://localhost/cine_tech_ac/uploads/' . $filme['capa'];
-                }
-
-                return $filmes;
-            } else {
-                return [];
-            }
-        } catch (PDOException $e) {
-            die("Erro na consulta ao banco de dados: " . $e->getMessage());
-        }
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
-    public function getCategoriasFromDatabase() {
-        $sql = "SELECT id, nome FROM generos";
+    // =========================
+    // Buscar filme por ID
+    // =========================
+    public function buscarFilmePorId($id) {
+        $sql = "SELECT * FROM filmes WHERE id = :id LIMIT 1";
+        $stmt = $this->pdo->prepare($sql);
+        $stmt->bindValue(':id', $id, PDO::PARAM_INT);
+        $stmt->execute();
 
-        try {
-            $pdo = Database::getInstance();
-            $stmt = $pdo->query($sql);
-            return $stmt->fetchAll(PDO::FETCH_ASSOC);
-        } catch (PDOException $e) {
-            die("Erro ao listar categorias: " . $e->getMessage());
-        }
+        return $stmt->fetch(PDO::FETCH_ASSOC);
     }
 
-    public function listarFilmesPorCategoria($genero_id) {
-        return $this->getFilmesFromDatabase($genero_id);
+    // =========================
+    // Atualizar filme
+    // =========================
+   // =========================
+// Atualizar filme
+// =========================
+public function atualizarFilme($id, $titulo, $sinopse, $trailer, $capa, $categoria, $lancamento, $duracao) {
+    // Define os campos a serem atualizados
+    $campos = [
+        'titulo'     => $titulo,
+        'sinopse'    => $sinopse,
+        'trailer'    => $trailer,
+        'categoria'  => $categoria,
+        'lancamento' => $lancamento,
+        'duracao'    => $duracao
+    ];
+
+    // Só atualiza a capa se for enviada
+    if ($capa) {
+        $campos['capa'] = $capa;
     }
 
-    public function inserirFilme($titulo, $sinopse, $trailer, $capa, $genero_id, $data_lancamento, $duracao) {
-        $sql = "INSERT INTO filmes (titulo, sinopse, trailer, capa, genero_id, data_lancamento, duracao) 
-                VALUES (:titulo, :sinopse, :trailer, :capa, :genero_id, :data_lancamento, :duracao)";
-
-        try {
-            $pdo = Database::getInstance();
-            $stmt = $pdo->prepare($sql);
-            $stmt->bindValue(':titulo', $titulo);
-            $stmt->bindValue(':sinopse', $sinopse);
-            $stmt->bindValue(':trailer', $trailer);
-            $stmt->bindValue(':capa', $capa);
-            $stmt->bindValue(':genero_id', $genero_id);
-            $stmt->bindValue(':data_lancamento', $data_lancamento);
-            $stmt->bindValue(':duracao', $duracao);
-            return $stmt->execute();
-        } catch (PDOException $e) {
-            error_log("Erro ao cadastrar filme: " . $e->getMessage());
-            return false;
-        }
+    $sets = [];
+    foreach ($campos as $key => $value) {
+        $sets[] = "$key = :$key";
     }
 
+    $sql = "UPDATE filmes SET " . implode(', ', $sets) . " WHERE id = :id";
+    $stmt = $this->pdo->prepare($sql);
+
+    $campos['id'] = $id;
+
+    return $stmt->execute($campos);
+}
+
+
+    // =========================
+    // Deletar filme
+    // =========================
     public function deletarFilme($id) {
         $sql = "DELETE FROM filmes WHERE id = :id";
+        $stmt = $this->pdo->prepare($sql);
+        $stmt->bindValue(':id', $id, PDO::PARAM_INT);
 
-        try {
-            $pdo = Database::getInstance();
-            $stmt = $pdo->prepare($sql);
-            $stmt->bindValue(':id', $id, PDO::PARAM_INT);
-            $stmt->execute();
-            return $stmt->rowCount() > 0;
-        } catch (PDOException $e) {
-            error_log("Erro ao deletar filme: " . $e->getMessage());
-            return false;
-        }
-    }
-
-    public function buscarFilmePorId($id) {
-        $sql = "SELECT 
-                    f.*, g.nome as genero
-                FROM filmes f
-                LEFT JOIN generos g ON f.genero_id = g.id
-                WHERE f.id = :id";
-
-        try {
-            $pdo = Database::getInstance();
-            $stmt = $pdo->prepare($sql);
-            $stmt->bindValue(':id', $id, PDO::PARAM_INT);
-            $stmt->execute();
-            $filme = $stmt->fetch(PDO::FETCH_ASSOC);
-
-            if ($filme) {
-                $filme['capa'] = 'http://localhost/cine_tech_ac/uploads/' . $filme['capa'];
-            }
-
-            return $filme;
-        } catch (PDOException $e) {
-            error_log("Erro ao buscar filme: " . $e->getMessage());
-            return false;
-        }
-    }
-
-    public function atualizarFilme($id, $titulo, $sinopse, $trailer, $capa, $genero_id, $data_lancamento, $duracao) {
-        $sql = "UPDATE filmes 
-                SET titulo = :titulo, sinopse = :sinopse, trailer = :trailer, capa = :capa, genero_id = :genero_id, data_lancamento = :data_lancamento, duracao = :duracao 
-                WHERE id = :id";
-
-        try {
-            $pdo = Database::getInstance();
-            $stmt = $pdo->prepare($sql);
-            $stmt->bindValue(':id', $id, PDO::PARAM_INT);
-            $stmt->bindValue(':titulo', $titulo);
-            $stmt->bindValue(':sinopse', $sinopse);
-            $stmt->bindValue(':trailer', $trailer);
-            $stmt->bindValue(':capa', $capa);
-            $stmt->bindValue(':genero_id', $genero_id);
-            $stmt->bindValue(':data_lancamento', $data_lancamento);
-            $stmt->bindValue(':duracao', $duracao);
-            return $stmt->execute();
-        } catch (PDOException $e) {
-            die("Erro ao atualizar filme: " . $e->getMessage());
-        }
-    }
-
-    public function filmeExiste($id) {
-        $sql = "SELECT id FROM filmes WHERE id = :id";
-        try {
-            $pdo = Database::getInstance();
-            $stmt = $pdo->prepare($sql);
-            $stmt->bindValue(':id', $id, PDO::PARAM_INT);
-            $stmt->execute();
-            return $stmt->rowCount() > 0;
-        } catch (PDOException $e) {
-            error_log("Erro ao verificar existência do filme: " . $e->getMessage());
-            return false;
-        }
+        return $stmt->execute();
     }
 }
